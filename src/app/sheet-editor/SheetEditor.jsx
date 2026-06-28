@@ -41,6 +41,101 @@ const getInitialState = () => {
     padding: { top: 0, right: 0, bottom: 0, left: 0 },
   }
 
+  const defaultDemo = {
+    "rows": 5,
+    "columns": 6,
+    "selectedFrames": {
+        "0": false,
+        "1": false,
+        "2": false,
+        "3": false,
+        "4": false,
+        "5": true,
+        "6": false,
+        "7": true,
+        "8": true,
+        "9": false,
+        "10": true,
+        "11": true,
+        "12": false,
+        "13": true,
+        "14": true,
+        "15": false,
+        "16": true,
+        "17": true,
+        "18": false,
+        "19": true,
+        "20": true,
+        "21": false,
+        "22": true,
+        "23": true,
+        "24": false,
+        "25": false,
+        "26": false,
+        "27": false,
+        "28": false,
+        "29": false
+    },
+    "fps": 10,
+    "zoom": 268,
+    "sidebarWidth": 530,
+    "selectedFrameIndex": 16,
+    "pixelEditor": {
+        "zoom": 896,
+        "panOffset": {
+            "x": 0,
+            "y": 0
+        },
+        "selection": null,
+        "width": 1199,
+        "color": {
+            "hex": "#FFA600",
+            "r": 255,
+            "g": 166,
+            "b": 0,
+            "a": 255,
+            "h": 39,
+            "s": 100,
+            "l": 50
+        },
+        "pencilWidth": 6,
+        "pencilAntiAlias": true,
+        "pencilSpread": 7,
+        "eraserWidth": 1,
+        "eraserAlpha": 255,
+        "eraserAntiAlias": false,
+        "eraserSpread": 7,
+        "fillTolerance": 0,
+        "fillAntiAlias": false
+    },
+    "preview": {
+        "panOffset": {
+            "x": -22,
+            "y": 62
+        },
+        "height": 463,
+        "backgroundColor": {
+            "hex": "#2D304D",
+            "r": 45,
+            "g": 48,
+            "b": 77,
+            "a": 255,
+            "h": 234,
+            "s": 26,
+            "l": 24
+        },
+        "backgroundMode": "image",
+        "backgroundImage": "/preview-bg-06.png"
+    },
+    "isAnimating": true,
+    "padding": {
+        "top": 5,
+        "right": 5,
+        "bottom": 5,
+        "left": 5
+    }
+}
+
   try {
     const savedState = localStorage.getItem('spriteSheetEditorState')
     if (savedState) {
@@ -51,7 +146,7 @@ const getInitialState = () => {
     console.error('Error loading state from localStorage:', error)
   }
   
-  return defaults
+  return { ...defaults, ...defaultDemo }
 }
 
 const getSavedImage = () => {
@@ -61,6 +156,26 @@ const getSavedImage = () => {
     console.error('Error loading image from localStorage:', error)
     return null
   }
+}
+
+export const initializeDemoImage = (onLoad) => {
+  const existing = localStorage.getItem('spriteSheetImage')
+  if (existing) { onLoad(existing); return }
+  const img = new Image()
+  img.crossOrigin = 'anonymous'
+  img.onload = () => {
+    const canvas = document.createElement('canvas')
+    canvas.width = img.width
+    canvas.height = img.height
+    canvas.getContext('2d').drawImage(img, 0, 0)
+    const dataUrl = canvas.toDataURL('image/png')
+    try {
+      localStorage.setItem('spriteSheetImage', dataUrl)
+      localStorage.setItem('spriteSheetEditorState', JSON.stringify(defaultDemo))
+    } catch (e) {}
+    onLoad(dataUrl)
+  }
+  img.src = '/demo-spritesheet.png'
 }
 
 function SheetEditor() {
@@ -441,7 +556,7 @@ function SheetEditor() {
           )}
         </main>
 
-        {selectedFrameIndex !== null && (
+        {selectedFrameIndex !== null && image && (
           <PixelEditor
             image={image}
             frameIndex={selectedFrameIndex}
