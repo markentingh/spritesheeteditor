@@ -4,6 +4,8 @@ A browser-based sprite sheet editor built with React, Vite, and TailwindCSS. Loa
 
 ---
 
+![Sprite Sheet Editor Screenshot](https://github.com/markentingh/spritesheeteditor/blob/main/public/screenshot-01.png?raw=true)
+
 ## Features
 
 ### Sheet Management
