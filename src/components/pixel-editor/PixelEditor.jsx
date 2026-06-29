@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import MenuDropdown from '../ui/MenuDropdown'
 import Slider from '../forms/Slider'
 import Checkbox from '../forms/Checkbox'
 import ColorPicker from './ColorPicker'
@@ -36,8 +37,6 @@ function PixelEditor({ image, frameIndex, rows, columns, padding, onClose, onSav
   const [resizeStart, setResizeStart] = useState({ x: 0, width: 0 })
   const [history, setHistory] = useState([])
   const [historyIndex, setHistoryIndex] = useState(-1)
-  const [showFileMenu, setShowFileMenu] = useState(false)
-  const [showImageMenu, setShowImageMenu] = useState(false)
   const [showReplaceColorModal, setShowReplaceColorModal] = useState(false)
   const [toolsDisabled, setToolsDisabled] = useState(false)
   const isRestoringRef = useRef(false)
@@ -45,8 +44,7 @@ function PixelEditor({ image, frameIndex, rows, columns, padding, onClose, onSav
   const maskCanvasRef = useRef(null)
   const strokeStartCanvasRef = useRef(null)
   const colorRef = useRef(initialSettings?.color || { hex: '#FF0000', r: 255, g: 0, b: 0, a: 255 })
-  const fileMenuRef = useRef(null)
-  const imageMenuRef = useRef(null)
+  const wheelContainerRef = useRef(null)
 
   // Update colorRef when color state changes
   useEffect(() => {
@@ -60,15 +58,7 @@ function PixelEditor({ image, frameIndex, rows, columns, padding, onClose, onSav
 
   // Close menus when clicking outside
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (fileMenuRef.current && !fileMenuRef.current.contains(e.target)) {
-        setShowFileMenu(false)
-      }
-      if (imageMenuRef.current && !imageMenuRef.current.contains(e.target)) {
-        setShowImageMenu(false)
-      }
-    }
-
+    const handleClickOutside = (e) => {}
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
@@ -723,52 +713,20 @@ function PixelEditor({ image, frameIndex, rows, columns, padding, onClose, onSav
       <div className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center gap-4">
         {/* Menu Bar */}
         <div className="flex items-center gap-2">
-          <div className="relative" ref={fileMenuRef}>
-            <button
-              onClick={() => {
-                setShowFileMenu(!showFileMenu)
-                setShowImageMenu(false)
-              }}
-              className="px-3 py-1 text-white hover:bg-gray-800 rounded transition-colors"
-            >
-              File
-            </button>
-            {showFileMenu && (
-              <div className="absolute top-full left-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-2xl z-50 min-w-[150px]">
-                <button
-                  onClick={handleDownloadFrame}
-                  className="w-full px-4 py-2 text-left text-white hover:bg-gray-700 transition-colors"
-                >
-                  Download
-                </button>
-              </div>
-            )}
-          </div>
-          
-          <div className="relative" ref={imageMenuRef}>
-            <button
-              onClick={() => {
-                setShowImageMenu(!showImageMenu)
-                setShowFileMenu(false)
-              }}
-              className="px-3 py-1 text-white hover:bg-gray-800 rounded transition-colors"
-            >
-              Image
-            </button>
-            {showImageMenu && (
-              <div className="absolute top-full left-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-2xl z-50 min-w-[150px]">
-                <button
-                  onClick={() => {
-                    setShowReplaceColorModal(true)
-                    setShowImageMenu(false)
-                  }}
-                  className="w-full px-4 py-2 text-left text-white hover:bg-gray-700 transition-colors"
-                >
-                  Replace Color
-                </button>
-              </div>
-            )}
-          </div>
+          <MenuDropdown
+            label="File"
+            variant="pixel-editor"
+            items={[
+              { label: 'Download', onClick: handleDownloadFrame },
+            ]}
+          />
+          <MenuDropdown
+            label="Image"
+            variant="pixel-editor"
+            items={[
+              { label: 'Replace Color', onClick: () => setShowReplaceColorModal(true) },
+            ]}
+          />
         </div>
         
         <span className="text-gray-400">|</span>
@@ -1002,6 +960,7 @@ function PixelEditor({ image, frameIndex, rows, columns, padding, onClose, onSav
                 height: '100%',
                 backgroundImage: 'repeating-conic-gradient(#1f2937 0% 25%, #111827 0% 50%) 50% / 20px 20px',
               }}
+              onWheel={(e) => setZoom(z => Math.min(1500, Math.max(100, z - Math.sign(e.deltaY) * 50)))}
             >
               <div
                 style={{
@@ -1100,7 +1059,7 @@ function PixelEditor({ image, frameIndex, rows, columns, padding, onClose, onSav
             </div>
           </div>
 
-          <div className="bg-gray-900 border-t border-gray-800 p-4 space-y-4">
+          <div className="bg-gray-900 border-t border-gray-800 px-4 py-3 flex items-center gap-4">
             <Slider
               label="Zoom"
               min={100}
@@ -1109,13 +1068,13 @@ function PixelEditor({ image, frameIndex, rows, columns, padding, onClose, onSav
               onChange={(e) => setZoom(parseInt(e.target.value))}
               onMouseUp={syncSettings}
               onTouchEnd={syncSettings}
+              className="flex-1"
             />
-            
-            <div className="flex gap-3">
+            <div className="flex gap-2 shrink-0 ml-auto">
               <button
                 onClick={handleSave}
                 disabled={!hasChanges}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
                   hasChanges
                     ? 'bg-green-600 hover:bg-green-700'
                     : 'bg-gray-700 cursor-not-allowed opacity-50'
@@ -1125,7 +1084,7 @@ function PixelEditor({ image, frameIndex, rows, columns, padding, onClose, onSav
               </button>
               <button
                 onClick={handleCancel}
-                className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors"
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors text-sm"
               >
                 Cancel
               </button>

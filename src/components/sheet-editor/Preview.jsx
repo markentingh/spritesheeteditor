@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import Slider from '../forms/Slider'
 import ColorPicker from '../pixel-editor/ColorPicker'
 
-function Preview({ image, rows, columns, padding, currentFrame, setCurrentFrame, fps, zoom, setFps, setZoom, initialSettings, onSettingsChange, selectedFrames, isAnimating, setIsAnimating }) {
+function Preview({ image, rows, columns, padding, currentFrame, setCurrentFrame, fps, zoom, setFps, setZoom, initialSettings, onSettingsChange, selectedFrames, isAnimating, setIsAnimating, onEditFrame }) {
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 })
   const [isPanning, setIsPanning] = useState(false)
   const [panOffset, setPanOffset] = useState(initialSettings?.panOffset || { x: 0, y: 0 })
@@ -13,6 +13,7 @@ function Preview({ image, rows, columns, padding, currentFrame, setCurrentFrame,
   const [backgroundColor, setBackgroundColor] = useState(initialSettings?.backgroundColor || { hex: '#FF0000', r: 255, g: 0, b: 0, a: 255 })
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [showBgDropdown, setShowBgDropdown] = useState(false)
+  const previewWheelRef = useRef(null)
   const [backgroundMode, setBackgroundMode] = useState(initialSettings?.backgroundMode || 'color')
   const [backgroundImage, setBackgroundImage] = useState(initialSettings?.backgroundImage || null)
   const [isTimelineDragging, setIsTimelineDragging] = useState(false)
@@ -191,6 +192,7 @@ function Preview({ image, rows, columns, padding, currentFrame, setCurrentFrame,
             backgroundRepeat: 'repeat'
           })
         }}
+        onWheel={(e) => setZoom(z => Math.min(500, Math.max(50, z - Math.sign(e.deltaY) * 10)))}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -223,15 +225,28 @@ function Preview({ image, rows, columns, padding, currentFrame, setCurrentFrame,
             }}
           />
         </div>
-        <button
-          onClick={handleReset}
-          className="absolute bottom-2 right-2 p-2 bg-gray-800 hover:bg-gray-700 rounded-lg border border-gray-700 transition-colors cursor-pointer z-10"
-          title="Reset zoom and position"
-        >
-          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-        </button>
+        <div className="absolute bottom-2 right-2 flex gap-1.5 z-10">
+          {!isAnimating && onEditFrame && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onEditFrame(currentFrame) }}
+              className="p-2 bg-gray-800 hover:bg-purple-700 rounded-lg border border-gray-700 hover:border-purple-500 transition-colors cursor-pointer"
+              title="Edit current frame in pixel editor"
+            >
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+            </button>
+          )}
+          <button
+            onClick={handleReset}
+            className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg border border-gray-700 transition-colors cursor-pointer"
+            title="Reset zoom and position"
+          >
+            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Timeline Controls */}

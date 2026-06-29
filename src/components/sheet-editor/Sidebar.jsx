@@ -3,7 +3,7 @@ import Preview from './Preview'
 import Input from '../forms/Input'
 import ExportModal from './ExportModal'
 
-function Sidebar({ rows, columns, onRowsChange, onColumnsChange, image, isAnimating, setIsAnimating, currentFrame, setCurrentFrame, fps, zoom, setFps, setZoom, width, onWidthChange, previewSettings, onPreviewSettingsChange, selectedFrames, padding, onPaddingChange }) {
+function Sidebar({ rows, columns, onRowsChange, onColumnsChange, image, isAnimating, setIsAnimating, currentFrame, setCurrentFrame, fps, zoom, setFps, setZoom, width, onWidthChange, previewSettings, onPreviewSettingsChange, selectedFrames, padding, onPaddingChange, onEditFrame }) {
   const [isResizing, setIsResizing] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
   const sidebarRef = useRef(null)
@@ -113,6 +113,7 @@ function Sidebar({ rows, columns, onRowsChange, onColumnsChange, image, isAnimat
               selectedFrames={selectedFrames}
               isAnimating={isAnimating}
               setIsAnimating={setIsAnimating}
+              onEditFrame={onEditFrame}
             />
             
             <button
