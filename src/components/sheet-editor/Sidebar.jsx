@@ -2,11 +2,50 @@ import { useState, useRef, useEffect } from 'react'
 import Preview from './Preview'
 import Input from '../forms/Input'
 import ExportModal from './ExportModal'
+import { useSheetEditor } from '../../app/SheetEditorContext'
 
-function Sidebar({ rows, columns, onRowsChange, onColumnsChange, image, isAnimating, setIsAnimating, currentFrame, setCurrentFrame, fps, zoom, setFps, setZoom, width, onWidthChange, previewSettings, onPreviewSettingsChange, selectedFrames, padding, onPaddingChange, onEditFrame }) {
+function Sidebar() {
+  const {
+    rows, setRows,
+    columns, setColumns,
+    image,
+    selectedFrames, setSelectedFrames,
+    padding, setPadding,
+  } = useSheetEditor()
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    try {
+      const saved = localStorage.getItem('spriteSheetEditorSidebarWidth')
+      if (saved) return parseInt(saved, 10)
+    } catch (error) {}
+    return 320
+  })
   const [isResizing, setIsResizing] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
   const sidebarRef = useRef(null)
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('spriteSheetEditorSidebarWidth', String(sidebarWidth))
+    } catch (error) {}
+  }, [sidebarWidth])
+
+  const initializeFrames = (r, c) => {
+    const frames = {}
+    for (let i = 0; i < r * c; i++) {
+      frames[i] = true
+    }
+    return frames
+  }
+
+  const handleRowsChange = (newRows) => {
+    setRows(newRows)
+    if (image) setSelectedFrames(initializeFrames(newRows, columns))
+  }
+
+  const handleColumnsChange = (newCols) => {
+    setColumns(newCols)
+    if (image) setSelectedFrames(initializeFrames(rows, newCols))
+  }
 
   useEffect(() => {
     const handleMouseMove = (e) => {
@@ -14,7 +53,7 @@ function Sidebar({ rows, columns, onRowsChange, onColumnsChange, image, isAnimat
       
       const newWidth = window.innerWidth - e.clientX
       if (newWidth >= 280 && newWidth <= 600) {
-        onWidthChange(newWidth)
+        setSidebarWidth(newWidth)
       }
     }
 
@@ -35,13 +74,13 @@ function Sidebar({ rows, columns, onRowsChange, onColumnsChange, image, isAnimat
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
     }
-  }, [isResizing, onWidthChange])
+  }, [isResizing, setSidebarWidth])
 
   return (
     <aside 
       ref={sidebarRef}
       className="bg-gray-800 border-l border-gray-700 overflow-auto flex flex-col relative"
-      style={{ width: `${width}px` }}
+      style={{ width: `${sidebarWidth}px` }}
     >
       <div
         className="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-purple-500 transition-colors z-10"
@@ -61,7 +100,7 @@ function Sidebar({ rows, columns, onRowsChange, onColumnsChange, image, isAnimat
               min="1"
               max="100"
               value={rows}
-              onChange={(e) => onRowsChange(parseInt(e.target.value) || 1)}
+              onChange={(e) => handleRowsChange(parseInt(e.target.value) || 1)}
             />
 
             <Input
@@ -70,7 +109,7 @@ function Sidebar({ rows, columns, onRowsChange, onColumnsChange, image, isAnimat
               min="1"
               max="100"
               value={columns}
-              onChange={(e) => onColumnsChange(parseInt(e.target.value) || 1)}
+              onChange={(e) => handleColumnsChange(parseInt(e.target.value) || 1)}
             />
           </div>
 
@@ -85,7 +124,7 @@ function Sidebar({ rows, columns, onRowsChange, onColumnsChange, image, isAnimat
                     min="0"
                     max="500"
                     value={padding?.[side] ?? 0}
-                    onChange={(e) => onPaddingChange({ ...padding, [side]: parseInt(e.target.value) || 0 })}
+                    onChange={(e) => setPadding({ ...padding, [side]: parseInt(e.target.value) || 0 })}
                     className="w-full px-2 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                     style={{ MozAppearance: 'textfield' }}
                   />
@@ -97,24 +136,7 @@ function Sidebar({ rows, columns, onRowsChange, onColumnsChange, image, isAnimat
 
         {image && (
           <>
-            <Preview
-              image={image}
-              rows={rows}
-              columns={columns}
-              padding={padding}
-              currentFrame={currentFrame}
-              setCurrentFrame={setCurrentFrame}
-              fps={fps}
-              zoom={zoom}
-              setFps={setFps}
-              setZoom={setZoom}
-              initialSettings={previewSettings}
-              onSettingsChange={onPreviewSettingsChange}
-              selectedFrames={selectedFrames}
-              isAnimating={isAnimating}
-              setIsAnimating={setIsAnimating}
-              onEditFrame={onEditFrame}
-            />
+            <Preview />
             
             <button
               onClick={() => setShowExportModal(true)}
@@ -127,14 +149,7 @@ function Sidebar({ rows, columns, onRowsChange, onColumnsChange, image, isAnimat
       </div>
 
       {showExportModal && (
-        <ExportModal
-          onClose={() => setShowExportModal(false)}
-          image={image}
-          rows={rows}
-          columns={columns}
-          padding={padding}
-          selectedFrames={selectedFrames}
-        />
+        <ExportModal onClose={() => setShowExportModal(false)} />
       )}
     </aside>
   )

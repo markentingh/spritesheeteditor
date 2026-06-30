@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { useSheetEditor } from '../../app/SheetEditorContext'
 
-function PaddingModal({ image, onClose, onApply }) {
+function PaddingModal({ onClose }) {
+  const { image, activeSheetKey, setImage, setPadding } = useSheetEditor()
   const [values, setValues] = useState({ top: 0, right: 0, bottom: 0, left: 0 })
   const [mode, setMode] = useState('add')
 
@@ -23,7 +25,15 @@ function PaddingModal({ image, onClose, onApply }) {
         ctx.drawImage(img, p.left, p.top, innerW, innerH, 0, 0, innerW, innerH)
       }
       const dataUrl = canvas.toDataURL('image/png')
-      onApply(dataUrl, mode, p)
+      localStorage.setItem(`spriteSheetImage_${activeSheetKey}`, dataUrl)
+      setImage(dataUrl)
+      setPadding(prev => ({
+        top: mode === 'add' ? (prev?.top || 0) + p.top : Math.max(0, (prev?.top || 0) - p.top),
+        right: mode === 'add' ? (prev?.right || 0) + p.right : Math.max(0, (prev?.right || 0) - p.right),
+        bottom: mode === 'add' ? (prev?.bottom || 0) + p.bottom : Math.max(0, (prev?.bottom || 0) - p.bottom),
+        left: mode === 'add' ? (prev?.left || 0) + p.left : Math.max(0, (prev?.left || 0) - p.left),
+      }))
+      onClose()
     }
     img.src = image
   }

@@ -1,9 +1,10 @@
 import SheetEditor from './app/SheetEditor'
+import { SheetEditorProvider } from './app/SheetEditorContext'
 
 const routes = [
   {
     path: '/',
-    component: SheetEditor,
+    component: () => <SheetEditorProvider><SheetEditor /></SheetEditorProvider>,
   },
 ]
 

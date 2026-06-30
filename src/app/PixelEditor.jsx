@@ -4,8 +4,16 @@ import Slider from '../components/forms/Slider'
 import Checkbox from '../components/forms/Checkbox'
 import ColorPicker from '../components/pixel-editor/ColorPicker'
 import ReplaceColor from '../components/pixel-editor/ReplaceColor'
+import { useSheetEditor } from './SheetEditorContext'
 
-function PixelEditor({ image, frameIndex, rows, columns, padding, onClose, onSave, initialSettings, onSettingsChange, selectedFrames, onFrameChange }) {
+function PixelEditor() {
+  const { image, rows, columns, padding, selectedFrames, previewSettings, pixelEditorSettings, setPixelEditorSettings, setImage, setSelectedFrameIndex } = useSheetEditor()
+  const frameIndex = previewSettings?.selectedFrameIndex
+  const onClose = () => setSelectedFrameIndex(null)
+  const onSave = (newImageData) => setImage(newImageData)
+  const onFrameChange = (idx) => setSelectedFrameIndex(idx)
+  const initialSettings = pixelEditorSettings
+  const onSettingsChange = setPixelEditorSettings
   const [zoom, setZoom] = useState(initialSettings?.zoom || 100)
   const [tool, setTool] = useState('pencil')
   const [color, setColorState] = useState(initialSettings?.color || { hex: '#FF0000', r: 255, g: 0, b: 0, a: 255 })
@@ -131,7 +139,7 @@ function PixelEditor({ image, frameIndex, rows, columns, padding, onClose, onSav
       extractFrame(img)
     }
     img.src = image
-  }, [frameIndex, rows, columns])
+  }, [image, frameIndex, rows, columns, padding])
 
   const extractFrame = (img) => {
     const pad = padding || { top: 0, right: 0, bottom: 0, left: 0 }
@@ -703,7 +711,7 @@ function PixelEditor({ image, frameIndex, rows, columns, padding, onClose, onSav
   return (
     <div className="flex flex-col bg-gray-950 border-l border-gray-800 relative" style={{ width: `${width}px` }}>
       <div
-        className="absolute left-0 top-0 bottom-0 w-1 bg-gray-700 hover:bg-purple-500 cursor-ew-resize transition-colors z-50"
+        className="absolute left-0 top-0 bottom-0 w-1 bg-gray-700 hover:bg-purple-500 cursor-ew-resize transition-colors z-20"
         onMouseDown={(e) => {
           setResizeStart({ x: e.clientX, width })
           setIsResizing(true)
@@ -1099,6 +1107,16 @@ function PixelEditor({ image, frameIndex, rows, columns, padding, onClose, onSav
               onTouchEnd={syncSettings}
               className="flex-1"
             />
+            <button
+              onClick={() => { setZoom(100); setPanOffset({ x: 0, y: 0 }); syncSettings() }}
+              className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gray-500 rounded text-xs text-gray-300 hover:text-white transition-colors"
+              title="Reset zoom and pan"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Reset
+            </button>
             <div className="flex gap-2 shrink-0 ml-auto">
               <button
                 onClick={handleSave}
@@ -1159,10 +1177,6 @@ function PixelEditor({ image, frameIndex, rows, columns, padding, onClose, onSav
             processSheet(fullCanvas.toDataURL('image/png'))
           }}
           canvasRef={canvasRef}
-          image={image}
-          rows={rows}
-          columns={columns}
-          frameIndex={frameIndex}
           setTool={setTool}
           onPickingChange={setToolsDisabled}
         />

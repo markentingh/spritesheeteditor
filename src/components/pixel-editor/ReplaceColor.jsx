@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 
-function ReplaceColor({ onClose, onApply, onApplyToSheet, onSaveSheet, canvasRef, image, rows, columns, frameIndex, setTool, onPickingChange }) {
+function ReplaceColor({ onClose, onApply, onApplyToSheet, onSaveSheet, canvasRef,  onPickingChange }) {
   const [replaceColorSettings, setReplaceColorSettings] = useState({
     sourceColors: [],
     targetHue: 0,
