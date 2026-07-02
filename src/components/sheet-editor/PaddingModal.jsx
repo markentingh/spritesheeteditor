@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useSheetEditor } from '../../app/SheetEditorContext'
+import { useSheetEditor } from '../../context/SheetEditorContext'
 
 function PaddingModal({ onClose }) {
   const { image, activeSheetKey, setImage, setPadding } = useSheetEditor()

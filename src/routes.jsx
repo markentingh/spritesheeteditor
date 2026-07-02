@@ -1,5 +1,5 @@
 import SheetEditor from './app/SheetEditor'
-import { SheetEditorProvider } from './app/SheetEditorContext'
+import { SheetEditorProvider } from './context/SheetEditorContext'
 
 const routes = [
   {

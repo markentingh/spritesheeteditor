@@ -4,10 +4,11 @@ import Slider from '../components/forms/Slider'
 import Checkbox from '../components/forms/Checkbox'
 import ColorPicker from '../components/pixel-editor/ColorPicker'
 import ReplaceColor from '../components/pixel-editor/ReplaceColor'
-import { useSheetEditor } from './SheetEditorContext'
+import { useSheetEditor } from '../context/SheetEditorContext'
+import { addReference } from '../components/pixel-editor/ReferenceWindow'
 
 function PixelEditor() {
-  const { image, rows, columns, padding, selectedFrames, previewSettings, pixelEditorSettings, setPixelEditorSettings, setImage, setSelectedFrameIndex } = useSheetEditor()
+  const { image, rows, columns, padding, selectedFrames, previewSettings, pixelEditorSettings, setPixelEditorSettings, setImage, setSelectedFrameIndex, activeSheetKey } = useSheetEditor()
   const frameIndex = previewSettings?.selectedFrameIndex
   const onClose = () => setSelectedFrameIndex(null)
   const onSave = (newImageData) => setImage(newImageData)
@@ -40,6 +41,8 @@ function PixelEditor() {
   const [cursorPos, setCursorPos] = useState(null)
   const [isSelecting, setIsSelecting] = useState(false)
   const [selectionStart, setSelectionStart] = useState(null)
+
+  const [isMoving, setIsMoving] = useState(false)
   const [width, setWidth] = useState(initialSettings?.width || 600)
   const [isResizing, setIsResizing] = useState(false)
   const [resizeStart, setResizeStart] = useState({ x: 0, width: 0 })
@@ -47,17 +50,100 @@ function PixelEditor() {
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [showReplaceColorModal, setShowReplaceColorModal] = useState(false)
   const [toolsDisabled, setToolsDisabled] = useState(false)
+  const [modKey, setModKey] = useState(null) // 'ctrl' | 'alt' | null
   const isRestoringRef = useRef(false)
   const originalImageRef = useRef(null)
   const maskCanvasRef = useRef(null)
   const strokeStartCanvasRef = useRef(null)
   const colorRef = useRef(initialSettings?.color || { hex: '#FF0000', r: 255, g: 0, b: 0, a: 255 })
   const wheelContainerRef = useRef(null)
+  const selectionMaskRef = useRef(null)   // offscreen canvas, white = selected
+  const selectionOverlayRef = useRef(null) // visible overlay canvas element
+  const moveStateRef = useRef(null)        // { startX, startY, offsetX, offsetY, floatCanvas, floatMask, origCanvas }
+  const inProgressSelectionRef = useRef(null) // mirrors {x,y,width,height,isSelecting} for rAF loop
 
   // Update colorRef when color state changes
   useEffect(() => {
     colorRef.current = color
   }, [color])
+
+  // Animate selection overlay with marching ants
+  useEffect(() => {
+    let animFrame
+    let offset = 0
+    const animate = () => {
+      const ov = selectionOverlayRef.current
+      const m = selectionMaskRef.current
+      if (!ov || !m) { animFrame = requestAnimationFrame(animate); return }
+      const iw = m.width, ih = m.height
+      const sw = ov.width, sh = ov.height
+      const scaleX = sw / iw, scaleY = sh / ih
+      const data = m.getContext('2d').getImageData(0, 0, iw, ih).data
+      const ctx = ov.getContext('2d')
+      ctx.clearRect(0, 0, sw, sh)
+      ctx.save()
+      ctx.strokeStyle = 'white'
+      ctx.lineWidth = 1
+      ctx.setLineDash([4, 4])
+      ctx.lineDashOffset = -offset
+      for (let y = 0; y < ih; y++) {
+        for (let x = 0; x < iw; x++) {
+          const a = data[(y * iw + x) * 4 + 3]
+          if (!a) continue
+          const L = x > 0      ? data[(y * iw + (x-1)) * 4 + 3] : 0
+          const R = x < iw - 1 ? data[(y * iw + (x+1)) * 4 + 3] : 0
+          const T = y > 0      ? data[((y-1) * iw + x) * 4 + 3] : 0
+          const B = y < ih - 1 ? data[((y+1) * iw + x) * 4 + 3] : 0
+          if (!L) { ctx.beginPath(); ctx.moveTo(x * scaleX, y * scaleY); ctx.lineTo(x * scaleX, (y+1) * scaleY); ctx.stroke() }
+          if (!R) { ctx.beginPath(); ctx.moveTo((x+1) * scaleX, y * scaleY); ctx.lineTo((x+1) * scaleX, (y+1) * scaleY); ctx.stroke() }
+          if (!T) { ctx.beginPath(); ctx.moveTo(x * scaleX, y * scaleY); ctx.lineTo((x+1) * scaleX, y * scaleY); ctx.stroke() }
+          if (!B) { ctx.beginPath(); ctx.moveTo(x * scaleX, (y+1) * scaleY); ctx.lineTo((x+1) * scaleX, (y+1) * scaleY); ctx.stroke() }
+        }
+      }
+      // Draw in-progress drag rect using same coordinate system as the mask
+      const ip = inProgressSelectionRef.current
+      if (ip && ip.isSelecting && ip.width > 0 && ip.height > 0) {
+        const rx = ip.x * scaleX
+        const ry = ip.y * scaleY
+        const rw = (ip.width + 1) * scaleX
+        const rh = (ip.height + 1) * scaleY
+        ctx.strokeStyle = 'black'
+        ctx.setLineDash([4, 4])
+        ctx.lineDashOffset = -offset + 4
+        ctx.strokeRect(rx + 0.5, ry + 0.5, rw - 1, rh - 1)
+        ctx.strokeStyle = 'white'
+        ctx.setLineDash([4, 4])
+        ctx.lineDashOffset = -offset
+        ctx.strokeRect(rx + 0.5, ry + 0.5, rw - 1, rh - 1)
+      }
+      ctx.restore()
+      offset = (offset + 0.15) % 8
+      animFrame = requestAnimationFrame(animate)
+    }
+    animFrame = requestAnimationFrame(animate)
+    return () => cancelAnimationFrame(animFrame)
+  }, [])
+
+  // Track Ctrl/Alt for select tool modifier cursor
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === 'Control') setModKey('ctrl')
+      else if (e.key === 'Alt') { e.preventDefault(); setModKey('alt') }
+    }
+    const onKeyUp = (e) => {
+      if (e.key === 'Alt') { e.preventDefault(); setModKey(null) }
+      else if (e.key === 'Control') setModKey(null)
+    }
+    const onBlur = () => setModKey(null)
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    window.addEventListener('blur', onBlur)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+      window.removeEventListener('blur', onBlur)
+    }
+  }, [])
   
   // Sync settings when anti-alias checkboxes change
   useEffect(() => {
@@ -544,6 +630,48 @@ function PixelEditor() {
     }
   }
 
+  // --- Selection mask helpers ---
+  const ensureSelectionMask = () => {
+    const canvas = canvasRef.current
+    if (!canvas) return null
+    if (!selectionMaskRef.current ||
+        selectionMaskRef.current.width !== canvas.width ||
+        selectionMaskRef.current.height !== canvas.height) {
+      const m = document.createElement('canvas')
+      m.width = canvas.width
+      m.height = canvas.height
+      selectionMaskRef.current = m
+    }
+    return selectionMaskRef.current
+  }
+
+  const hasSelection = () => {
+    const m = selectionMaskRef.current
+    if (!m) return false
+    const d = m.getContext('2d').getImageData(0, 0, m.width, m.height).data
+    for (let i = 3; i < d.length; i += 4) if (d[i] > 0) return true
+    return false
+  }
+
+  const clearSelectionMask = () => {
+    const m = selectionMaskRef.current
+    if (m) m.getContext('2d').clearRect(0, 0, m.width, m.height)
+  }
+
+  const commitFloat = () => {
+    const ms = moveStateRef.current
+    if (!ms || !canvasRef.current) return
+    const ctx = canvasRef.current.getContext('2d')
+    ctx.drawImage(ms.floatCanvas, ms.offsetX, ms.offsetY)
+    const m = ensureSelectionMask()
+    const mCtx = m.getContext('2d')
+    mCtx.clearRect(0, 0, m.width, m.height)
+    mCtx.drawImage(ms.floatMask, ms.offsetX, ms.offsetY)
+    moveStateRef.current = null
+    setIsMoving(false)
+    setHasChanges(true)
+  }
+
   const handleMouseDown = (e) => {
     // Disable all pixel editor tools when external tool is active
     if (toolsDisabled) return
@@ -562,9 +690,63 @@ function PixelEditor() {
     }
 
     if (tool === 'select') {
+      const m = ensureSelectionMask()
+      const mCtx = m.getContext('2d')
+      const mode = e.ctrlKey ? 'add' : e.altKey ? 'subtract' : 'replace'
+      if (mode === 'replace') mCtx.clearRect(0, 0, m.width, m.height)
       setIsSelecting(true)
-      setSelectionStart({ x, y })
+      setSelectionStart({ x, y, mode })
       setSelection({ x, y, width: 0, height: 0 })
+      inProgressSelectionRef.current = { x, y, width: 0, height: 0, isSelecting: true }
+      return
+    }
+
+    if (tool === 'move') {
+      const canvas = canvasRef.current
+      const ctx = canvas.getContext('2d')
+      const m = ensureSelectionMask()
+      const hasSel = hasSelection()
+
+      if (hasSel) {
+        // Lift selected pixels into float
+        const mData = m.getContext('2d').getImageData(0, 0, m.width, m.height)
+        const srcData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+        const floatC = document.createElement('canvas')
+        floatC.width = canvas.width; floatC.height = canvas.height
+        const floatCtx = floatC.getContext('2d')
+        const floatImgData = floatCtx.createImageData(canvas.width, canvas.height)
+        for (let i = 0; i < mData.data.length; i += 4) {
+          if (mData.data[i + 3] > 0) {
+            floatImgData.data[i] = srcData.data[i]
+            floatImgData.data[i+1] = srcData.data[i+1]
+            floatImgData.data[i+2] = srcData.data[i+2]
+            floatImgData.data[i+3] = srcData.data[i+3]
+            srcData.data[i+3] = 0 // erase from canvas
+          }
+        }
+        floatCtx.putImageData(floatImgData, 0, 0)
+        ctx.putImageData(srcData, 0, 0)
+        const floatMask = document.createElement('canvas')
+        floatMask.width = canvas.width; floatMask.height = canvas.height
+        floatMask.getContext('2d').drawImage(m, 0, 0)
+        const origC = document.createElement('canvas')
+        origC.width = canvas.width; origC.height = canvas.height
+        origC.getContext('2d').drawImage(canvas, 0, 0)
+        moveStateRef.current = { startX: x, startY: y, offsetX: 0, offsetY: 0, floatCanvas: floatC, floatMask, origCanvas: origC }
+      } else {
+        // Move whole frame
+        const floatC = document.createElement('canvas')
+        floatC.width = canvas.width; floatC.height = canvas.height
+        floatC.getContext('2d').drawImage(canvas, 0, 0)
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
+        const floatMask = document.createElement('canvas')
+        floatMask.width = canvas.width; floatMask.height = canvas.height
+        const fmCtx = floatMask.getContext('2d')
+        fmCtx.fillStyle = 'white'
+        fmCtx.fillRect(0, 0, floatMask.width, floatMask.height)
+        moveStateRef.current = { startX: x, startY: y, offsetX: 0, offsetY: 0, floatCanvas: floatC, floatMask }
+      }
+      setIsMoving(true)
       return
     }
     
@@ -613,14 +795,37 @@ function PixelEditor() {
 
     if (isSelecting && selectionStart) {
       const { x, y } = getCanvasCoordinates(e)
-      const width = x - selectionStart.x
-      const height = y - selectionStart.y
-      setSelection({
-        x: width < 0 ? x : selectionStart.x,
-        y: height < 0 ? y : selectionStart.y,
-        width: Math.abs(width),
-        height: Math.abs(height)
-      })
+      const w = x - selectionStart.x
+      const h = y - selectionStart.y
+      const sel = {
+        x: w < 0 ? x : selectionStart.x,
+        y: h < 0 ? y : selectionStart.y,
+        width: Math.abs(w),
+        height: Math.abs(h)
+      }
+      setSelection(sel)
+      inProgressSelectionRef.current = { ...sel, isSelecting: true }
+      return
+    }
+
+    if (isMoving && moveStateRef.current) {
+      const { x, y } = getCanvasCoordinates(e)
+      const ms = moveStateRef.current
+      const dx = x - ms.startX
+      const dy = y - ms.startY
+      ms.offsetX = dx
+      ms.offsetY = dy
+      // Redraw canvas: original (erased) state + float at offset
+      const canvas = canvasRef.current
+      const ctx = canvas.getContext('2d')
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      if (ms.origCanvas) ctx.drawImage(ms.origCanvas, 0, 0)
+      ctx.drawImage(ms.floatCanvas, dx, dy)
+      // Move selection overlay too
+      const m = ensureSelectionMask()
+      const mCtx = m.getContext('2d')
+      mCtx.clearRect(0, 0, m.width, m.height)
+      mCtx.drawImage(ms.floatMask, dx, dy)
       return
     }
 
@@ -630,21 +835,55 @@ function PixelEditor() {
   }
 
   const handleMouseUp = () => {
-    if (isDrawing && (tool === 'pencil' || tool === 'eraser')) {
+    if (isDrawing) {
       finishDrawing()
+      setIsDrawing(false)
     }
-    setIsDrawing(false)
     if (isPanning) {
       setIsPanning(false)
-      // Sync pan offset to localStorage when panning stops
       syncSettings()
     }
-    if (isSelecting) {
+    if (isSelecting && selectionStart) {
+      // Commit rect selection into mask
+      const m = ensureSelectionMask()
+      const mCtx = m.getContext('2d')
+      if (selection && selection.width > 0 && selection.height > 0) {
+        const { x, y, width: w, height: h } = selection
+        if (selectionStart.mode === 'add' || selectionStart.mode === 'replace') {
+          mCtx.fillStyle = 'white'
+          mCtx.fillRect(x, y, w + 1, h + 1)
+        } else if (selectionStart.mode === 'subtract') {
+          mCtx.clearRect(x, y, w + 1, h + 1)
+        }
+      }
       setIsSelecting(false)
       setSelectionStart(null)
-      // Sync selection to localStorage when selection is complete
+      setSelection(null)
+      inProgressSelectionRef.current = null
       syncSettings()
     }
+    if (moveStateRef.current) {
+      commitFloat()
+      updateSpriteSheetPreview()
+    }
+  }
+
+  const handleViewReference = () => {
+    const id = `ref_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+    const newRef = {
+      id,
+      spriteSheet: activeSheetKey,
+
+      index: frameIndex,
+      rows,
+      columns,
+      x: Math.round(window.innerWidth / 2 - 120),
+      y: Math.round(window.innerHeight / 2 - 120),
+      w: 240,
+      h: 240,
+    }
+    addReference(newRef)
+    window.dispatchEvent(new Event('reference-added'))
   }
 
   const handleDownloadFrame = () => {
@@ -685,6 +924,7 @@ function PixelEditor() {
 
   const tools = [
     { id: 'hand', name: 'Hand Tool', icon: <span className="material-symbols-outlined">pan_tool</span> },
+    { id: 'move', name: 'Move', icon: <span className="material-symbols-outlined">open_with</span> },
     { id: 'pencil', name: 'Pencil', icon: <span className="material-symbols-outlined">edit</span> },
     { id: 'eraser', name: 'Eraser', icon: <span className="material-symbols-outlined">ink_eraser</span> },
     { id: 'fill', name: 'Fill', icon: <span className="material-symbols-outlined">format_color_fill</span> },
@@ -723,6 +963,7 @@ function PixelEditor() {
             variant="pixel-editor"
             items={[
               { label: 'Download', onClick: handleDownloadFrame },
+              { label: 'View Reference', onClick: handleViewReference },
             ]}
           />
           <MenuDropdown
@@ -977,7 +1218,6 @@ function PixelEditor() {
                   left: '50%',
                   top: '50%',
                   transform: `translate(calc(-50% + ${panOffset.x}px), calc(-50% + ${panOffset.y}px))`,
-                  padding: '2px',
                 }}
               >
                 <div
@@ -991,7 +1231,6 @@ function PixelEditor() {
                 >
                   <canvas
                     ref={canvasRef}
-                    className={tool === 'hand' ? 'cursor-grab' : ''}
                     style={{
                       width: `${displayWidth}px`,
                       height: `${displayHeight}px`,
@@ -999,17 +1238,19 @@ function PixelEditor() {
                       top: 0,
                       left: 0,
                       imageRendering: 'pixelated',
-                      cursor: isPanning ? 'grabbing' : (tool === 'pencil' || tool === 'eraser' ? 'none' : 'crosshair'),
+                      cursor: isPanning ? 'grabbing' : (tool === 'hand' ? 'grab' : tool === 'move' ? (isMoving ? 'grabbing' : 'move') : tool === 'pencil' || tool === 'eraser' ? 'none' : 'crosshair'),
                     }}
                     onMouseDown={handleMouseDown}
                     onMouseMove={(e) => {
                       handleMouseMove(e)
-                      if ((tool === 'pencil' || tool === 'eraser') && !toolsDisabled) {
+                      if (((tool === 'pencil' || tool === 'eraser') && !toolsDisabled) || tool === 'select') {
                         const rect = canvasRef.current.getBoundingClientRect()
                         setCursorPos({
                           x: e.clientX - rect.left,
                           y: e.clientY - rect.top
                         })
+                      } else {
+                        setCursorPos(null)
                       }
                     }}
                     onMouseUp={handleMouseUp}
@@ -1034,21 +1275,34 @@ function PixelEditor() {
                       }}
                     />
                   )}
-                {selection && selection.width > 0 && selection.height > 0 && (
-                  <div
-                    className="marching-ants"
+                  {/* Selection mask overlay */}
+                  <canvas
+                    ref={selectionOverlayRef}
+                    width={displayWidth}
+                    height={displayHeight}
                     style={{
-                      position: 'absolute',
-                      left: `${(selection.x / frameWidth) * displayWidth}px`,
-                      top: `${(selection.y / frameHeight) * displayHeight}px`,
-                      width: `${(selection.width / frameWidth) * displayWidth}px`,
-                      height: `${(selection.height / frameHeight) * displayHeight}px`,
-                      border: '1px dashed white',
+                      position: 'absolute', top: 0, left: 0,
+                      width: `${displayWidth}px`, height: `${displayHeight}px`,
                       pointerEvents: 'none',
-                      boxSizing: 'border-box',
                     }}
                   />
-                )}
+                  {/* Select tool Ctrl/Alt badge */}
+                  {tool === 'select' && cursorPos && modKey && (
+                    <div style={{
+                      position: 'absolute',
+                      left: cursorPos.x + 10,
+                      top: cursorPos.y + 8,
+                      color: 'white',
+                      fontSize: 14,
+                      fontWeight: 'bold',
+                      lineHeight: 1,
+                      pointerEvents: 'none',
+                      userSelect: 'none',
+                      textShadow: '0 0 2px black, 1px 1px 2px black, -1px -1px 2px black',
+                    }}>
+                      {modKey === 'ctrl' ? '+' : '−'}
+                    </div>
+                  )}
                 </div>
               </div>
               <style>{`

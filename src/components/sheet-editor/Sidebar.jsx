@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import Preview from './Preview'
 import Input from '../forms/Input'
 import ExportModal from './ExportModal'
-import { useSheetEditor } from '../../app/SheetEditorContext'
+import { useSheetEditor } from '../../context/SheetEditorContext'
 
 function Sidebar() {
   const {

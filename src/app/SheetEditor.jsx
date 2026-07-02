@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import Sidebar from '../components/sheet-editor/Sidebar'
 import PixelEditor from './PixelEditor'
 import SheetViewer from '../components/sheet-editor/SheetViewer'
-import { useSheetEditor } from './SheetEditorContext'
+import { useSheetEditor } from '../context/SheetEditorContext'
+import { ReferenceManager } from '../components/pixel-editor/ReferenceWindow'
 
 function SheetEditor() {
   const {
@@ -76,6 +77,8 @@ function SheetEditor() {
         <Sidebar key={activeSheetKey} />
       </div>
 
+
+      <ReferenceManager />
 
       {isGlobalDragging && (
         <div className="fixed inset-0 bg-purple-600/20 backdrop-blur-sm z-50 flex items-center justify-center border-4 border-dashed border-purple-500 pointer-events-none">

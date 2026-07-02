@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import Slider from '../forms/Slider'
-import { useSheetEditor } from '../../app/SheetEditorContext'
+import { useSheetEditor } from '../../context/SheetEditorContext'
 
 function ExportModal({ onClose }) {
   const { spriteSheets, activeIndex } = useSheetEditor()

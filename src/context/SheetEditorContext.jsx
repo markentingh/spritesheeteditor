@@ -92,6 +92,7 @@ export function SheetEditorProvider({ children }) {
   const [padding, setPadding] = useState({ top: pad[0], right: pad[1], bottom: pad[2], left: pad[3] })
   const [selectedFrames, setSelectedFrames] = useState(initialSheet?.selectedFrames ?? {})
   const [previewSettings, setPreviewSettings] = useState(initialSheet?.preview ?? createSheet('').preview)
+  const [animFrame, setAnimFrame] = useState(initialSheet?.preview?.currentFrame ?? 0)
   const [pixelEditorSettings, setPixelEditorSettings] = useState(initialState.pixelEditor ?? defaultPixelEditor)
   const [spriteSize, setSpriteSize] = useState(initialState.spriteSize ?? null)
   const [resizeAlgo, setResizeAlgo] = useState(initialState.resizeAlgo ?? 'nearest')
@@ -282,10 +283,19 @@ export function SheetEditorProvider({ children }) {
     return () => { cancelled = true }
   }, [activeIndex, spriteSheets])
 
-  const currentFrameRef = useRef(previewSettings?.currentFrame ?? 0)
+  const animFrameRef = useRef(animFrame)
+  useEffect(() => { animFrameRef.current = animFrame }, [animFrame])
+
+  // When pausing, commit the live animFrame back into previewSettings.currentFrame
+  const prevIsAnimating = useRef(previewSettings?.isAnimating ?? false)
   useEffect(() => {
-    currentFrameRef.current = previewSettings?.currentFrame ?? 0
-  }, [previewSettings?.currentFrame])
+    const wasAnimating = prevIsAnimating.current
+    const isNowAnimating = previewSettings?.isAnimating ?? false
+    prevIsAnimating.current = isNowAnimating
+    if (wasAnimating && !isNowAnimating) {
+      setPreviewSettings(prev => ({ ...prev, currentFrame: animFrameRef.current }))
+    }
+  }, [previewSettings?.isAnimating])
 
   useEffect(() => {
     if (!previewSettings?.isAnimating) return
@@ -298,10 +308,11 @@ export function SheetEditorProvider({ children }) {
     if (activeFrames.length === 0) return
 
     const interval = setInterval(() => {
-      const currentIndex = activeFrames.indexOf(currentFrameRef.current)
+      const currentIndex = activeFrames.indexOf(animFrameRef.current)
       const nextIndex = (currentIndex + 1) % activeFrames.length
       const nextFrame = activeFrames[nextIndex]
-      setPreviewSettings(prev => ({ ...prev, currentFrame: nextFrame }))
+      animFrameRef.current = nextFrame
+      setAnimFrame(nextFrame)
     }, 1000 / fps)
 
     return () => clearInterval(interval)
@@ -377,6 +388,7 @@ export function SheetEditorProvider({ children }) {
     title, setTitle,
     selectedFrames, setSelectedFrames,
     previewSettings, setPreviewSettings,
+    animFrame, setAnimFrame,
     pixelEditorSettings, setPixelEditorSettings,
     spriteSize, setSpriteSize,
     resizeAlgo, setResizeAlgo,

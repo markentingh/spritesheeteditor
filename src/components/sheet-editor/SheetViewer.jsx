@@ -2,9 +2,10 @@ import { useState, useEffect, useRef } from 'react'
 import Checkbox from '../forms/Checkbox'
 import MenuDropdown from '../ui/MenuDropdown'
 import PaddingModal from '../sheet-editor/PaddingModal'
+import CropFramesModal from '../sheet-editor/CropFramesModal'
 import RearrangeFramesModal from '../sheet-editor/RearrangeFramesModal'
 import SpriteSheetSidebar from '../sheet-editor/SpriteSheetSidebar'
-import { useSheetEditor } from '../../app/SheetEditorContext'
+import { useSheetEditor } from '../../context/SheetEditorContext'
 
 function SheetViewer() {
     const {
@@ -38,6 +39,7 @@ function SheetViewer() {
     const [showRearrangeFramesModal, setShowRearrangeFramesModal] = useState(false)
     const [showResizeModal, setShowResizeModal] = useState(false)
     const [showDeleteSheetModal, setShowDeleteSheetModal] = useState(false)
+    const [showCropFramesModal, setShowCropFramesModal] = useState(false)
     const [showSaveAsDialog, setShowSaveAsDialog] = useState(false)
     const [saveAsFilename, setSaveAsFilename] = useState('project')
     const [showNewProjectModal, setShowNewProjectModal] = useState(false)
@@ -367,6 +369,7 @@ function SheetViewer() {
                                         items={[
                                             { label: 'Edit Padding', onClick: () => setShowPaddingModal(true) },
                                             { label: 'Rearrange Frames', onClick: () => setShowRearrangeFramesModal(true) },
+                                            { label: 'Crop Frames', onClick: () => setShowCropFramesModal(true) },
                                         ]}
                                     />
                                     <span className="text-xs text-gray-500 mr-2 shrink-0">Frame px:</span>
@@ -710,6 +713,16 @@ function SheetViewer() {
 
             {showRearrangeFramesModal && (
                 <RearrangeFramesModal onClose={() => setShowRearrangeFramesModal(false)} />
+            )}
+
+            {showCropFramesModal && (
+                <CropFramesModal
+                    imgRef={imgRef}
+                    rows={rows}
+                    columns={columns}
+                    padding={padding}
+                    onClose={() => setShowCropFramesModal(false)}
+                />
             )}
 
             {showResizeModal && (

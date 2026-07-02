@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import FrameRearranger from './FrameRearranger'
 import Preview from './Preview'
-import { useSheetEditor } from '../../app/SheetEditorContext'
+import { useSheetEditor } from '../../context/SheetEditorContext'
 
 function generateRearrangedImage(image, rows, columns, padding, frameOrder) {
   return new Promise((resolve) => {

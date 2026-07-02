@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Slider from '../forms/Slider'
 import ColorPicker from '../pixel-editor/ColorPicker'
-import { useSheetEditor } from '../../app/SheetEditorContext'
+import { useSheetEditor } from '../../context/SheetEditorContext'
 
 function Preview({ hideControls = false, image: imageProp, selectedFrames: selectedFramesProp }) {
-  const { image: imageCtx, rows, title, columns, padding, previewSettings, setPreviewSettings, previewHeight, setPreviewHeight, selectedFrames: selectedFramesCtx, setSelectedFrameIndex, spriteSheets, setSpriteSheets, activeIndex, setActiveIndex } = useSheetEditor()
+  const { image: imageCtx, rows, title, columns, padding, previewSettings, setPreviewSettings, animFrame, previewHeight, setPreviewHeight, selectedFrames: selectedFramesCtx, setSelectedFrameIndex, spriteSheets, setSpriteSheets, activeIndex, setActiveIndex } = useSheetEditor()
   const image = imageProp ?? imageCtx
   const selectedFrames = selectedFramesProp ?? selectedFramesCtx
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 })
@@ -22,7 +22,8 @@ function Preview({ hideControls = false, image: imageProp, selectedFrames: selec
   const bgButtonRef = useRef(null)
   const timelineRef = useRef(null)
 
-  const { currentFrame, isAnimating, fps, zoom } = previewSettings || {}
+  const { isAnimating, fps, zoom } = previewSettings || {}
+  const currentFrame = isAnimating ? animFrame : (previewSettings?.currentFrame ?? 0)
 
   const updatePreview = useCallback((updates) => {
     setPreviewSettings(prev => ({ ...prev, ...updates }))
